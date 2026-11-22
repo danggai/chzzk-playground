@@ -1067,7 +1067,13 @@ function addCheese(name, amount, nick) {
 
 function subCheese(name, amount) {
   const key = itemKey(name);
-  const found = state.items.find((i) => i.key === key);
+  let found = state.items.find((i) => i.key === key);
+  if (!found) {
+    // 이름이 정확히 안 맞으면 비슷한 항목이 딱 하나일 때만 그 항목에서 차감 (여러 개면 잘못 빠질 수 있어 실패 처리)
+    const cand = state.items.filter((i) => !removing.has(i) && looksSimilar(key, i.key));
+    if (cand.length === 1) { found = cand[0]; log(`차감 대상: ${normalize(name)} -> ${found.name} (비슷한 항목)`); }
+    else if (cand.length > 1) return log(`차감 실패(비슷한 항목이 여러 개: ${cand.map((i) => i.name).join(', ')})`);
+  }
   if (!found) return log(`차감 실패(항목 없음): ${normalize(name)}`);
   if (spinning || removing.has(found)) return log('차감 실패(돌리는 중 또는 삭제 중)');
   const before = state.items.reduce((a, i) => a + eff(i), 0);
@@ -2243,8 +2249,12 @@ function onDonation(d) {
   if (state.phase !== 'open') return log(`무시(접수 중 아님): ${d.nick} ${d.amount} "${msg}"`);
   if (d.amount < minCheese) return log(`무시(최소 ${minCheese.toLocaleString()}치즈 미만): ${d.nick} ${d.amount}`);
   if (!msg) return log(`무시(메시지 없음): ${d.nick} ${d.amount}`);
-  if (subOn && /\s*차감\s*$/.test(msg)) {
-    const target = msg.replace(/\s*차감\s*$/, '').trim();
+  // "OOO 차감" 인식: 띄어쓰기("차 감", "OOO차감")와 끝 군더더기("차감!!", "차감ㄱ")는 무시
+  const subBody = stripTail(msg);
+  const SUB_RE = /\s*차\s*감$/;
+  if (SUB_RE.test(subBody)) {
+    if (!subOn) return log(`무시(차감 기능이 꺼져 있음, 치즈 설정에서 켜 주세요): ${d.nick || '익명'} ${d.amount} "${msg}"`);
+    const target = subBody.replace(SUB_RE, '').trim();
     if (!target) return log(`무시(차감 대상 없음): ${d.nick} ${d.amount}`);
     log(`${d.nick || '익명'} ${d.amount}치즈 -> ${target} 차감`);
     return subCheese(target, d.amount);
