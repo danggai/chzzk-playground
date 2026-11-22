@@ -126,6 +126,8 @@
   input.bump { animation:inputbump .5s ease-out; border-color:#b57bff; }
   .chk input { flex:none; width:16px; height:16px; min-width:0; padding:0; margin:2px 0 0; border-radius:4px; accent-color:#b57bff; cursor:pointer; }
   .chk small { display:block; color:#b57bff; font-weight:700; margin-top:2px; }
+  .chk.lim { align-items:center; font-size:13px; color:var(--sub); }
+  .chk.lim input { width:56px; height:auto; padding:3px 6px; margin:0; text-align:center; font-size:13px; border-radius:6px; accent-color:auto; }
   .rerolltip { position:absolute; top:6vh; left:50%; transform:translateX(-50%); z-index:2; padding:12px 26px; border-radius:999px; white-space:nowrap;
     background:rgba(20,14,40,.92); border:2px solid #b57bff; color:#e6d6ff; font-size:clamp(18px,2.4vw,30px); font-weight:800; letter-spacing:.04em;
     box-shadow:0 0 30px rgba(181,123,255,.55); animation:tipbob 1.6s ease-in-out infinite; pointer-events:none; }
@@ -405,6 +407,10 @@
         <input id="minAmt" type="text" inputmode="numeric" autocomplete="off" placeholder="0" style="flex:1" title="이 금액 미만 후원은 무시">
       </div>
       <div class="row">
+        <span style="width:72px;align-self:center;color:var(--sub);flex:none">등록 최소</span>
+        <input id="regAmt" type="text" inputmode="numeric" autocomplete="off" placeholder="0 (끔)" style="flex:1" title="새 항목은 이 금액 이상 후원해야 등록됨. 이미 있는 항목에 보태는 건 최소 치즈만 넘으면 됨 (0 = 끔)">
+      </div>
+      <div class="row">
         <span style="width:72px;align-self:center;color:var(--sub);flex:none">리롤</span>
         <input id="rerollAmt" type="text" inputmode="numeric" autocomplete="off" placeholder="0" style="flex:1" title="결과창에서 이 금액 후원 시 다시 돌리기 (0 = 끔)">
       </div>
@@ -412,6 +418,11 @@
         <input id="rerollInc" type="checkbox">
         <span>리롤할 때마다 비용 증가 <small id="rerollSeq"></small></span>
       </label>
+      <div id="rerollMaxRow" class="chk lim">
+        <span>한 판에 최대</span>
+        <input id="rerollMax" type="text" inputmode="numeric" autocomplete="off" placeholder="∞" title="한 판에서 리롤할 수 있는 최대 횟수 (비우거나 0 = 무제한)">
+        <span>회</span>
+      </div>
       <div class="row" style="margin-top:10px">
         <span style="width:72px;align-self:center;color:var(--sub);flex:none">차감</span>
         <label class="sw"><input id="subOn" type="checkbox"><i></i></label>
@@ -1139,6 +1150,8 @@ function render() {
   $('minAmt').disabled = state.phase === 'open';
   $('rerollAmt').disabled = state.phase === 'open';
   $('rerollInc').disabled = state.phase === 'open';
+  $('regAmt').disabled = state.phase === 'open';
+  $('rerollMax').disabled = state.phase === 'open';
   $('subOn').disabled = state.phase === 'open';
   document.body.classList.toggle('spinning', spinning && spinPhase !== 'rewind');
   syncBgm();
@@ -1711,7 +1724,9 @@ function showWinner(w, total, info) {
   }
   const tip = $('rerollTip');
   tip.hidden = !(rerollCost > 0);
-  tip.innerHTML = `<b>${currentRerollCost().toLocaleString()}치즈</b>로 리롤`;
+  const left = rerollLeft();
+  tip.innerHTML = left <= 0 ? `리롤 ${rerollMax}회 모두 사용`
+    : `<b>${currentRerollCost().toLocaleString()}치즈</b>로 리롤${rerollMax ? ` · 남은 횟수 ${left}` : ''}`;
   $('winner').classList.add('show');
 }
 
@@ -1993,6 +2008,29 @@ $('rerollInc').checked = rerollInc;
 
 function currentRerollCost() { return rerollCost * (rerollInc ? rerollCount + 1 : 1); }
 
+// 새 항목 등록에 필요한 최소 치즈 (0 = 끔)
+let regMin = 0;
+try { regMin = Math.max(0, parseInt(localStorage.getItem('cheese-roulette-regmin'), 10) || 0); } catch {}
+$('regAmt').value = regMin || '';
+$('regAmt').onchange = () => {
+  if (state.phase === 'open') { $('regAmt').value = regMin || ''; return; }
+  regMin = Math.max(0, parseInt($('regAmt').value, 10) || 0);
+  $('regAmt').value = regMin || '';
+  try { localStorage.setItem('cheese-roulette-regmin', String(regMin)); } catch {}
+};
+
+// 한 판에 리롤 가능한 최대 횟수 (0 = 무제한)
+let rerollMax = 0;
+try { rerollMax = Math.max(0, parseInt(localStorage.getItem('cheese-roulette-reroll-max'), 10) || 0); } catch {}
+$('rerollMax').value = rerollMax || '';
+$('rerollMax').onchange = () => {
+  if (state.phase === 'open') { $('rerollMax').value = rerollMax || ''; return; }
+  rerollMax = Math.max(0, parseInt($('rerollMax').value, 10) || 0);
+  $('rerollMax').value = rerollMax || '';
+  try { localStorage.setItem('cheese-roulette-reroll-max', String(rerollMax)); } catch {}
+};
+const rerollLeft = () => (rerollMax > 0 ? Math.max(0, rerollMax - rerollCount) : Infinity);
+
 function restart(el, cls) {
   el.classList.remove(cls);
   void el.offsetWidth;
@@ -2001,6 +2039,7 @@ function restart(el, cls) {
 
 function updateRerollUi(animate) {
   $('rerollIncRow').classList.toggle('show', rerollCost > 0);
+  $('rerollMaxRow').classList.toggle('show', rerollCost > 0);
   const f = (n) => (rerollCost * n).toLocaleString();
   const seq = $('rerollSeq');
   const text = `${f(1)} \u2192 ${f(2)} \u2192 ${f(3)} ...`;
@@ -2044,7 +2083,8 @@ let rerollBusy = false;
 function onDonation(d) {
   const msg = normalize(d.message || '');
   if (rerollCost > 0 && d.amount === currentRerollCost() && $('winner').classList.contains('show') && !spinning) {
-    log(`리롤: ${d.nick || '익명'} ${d.amount}치즈`);
+    if (rerollLeft() <= 0) return log(`무시(리롤 ${rerollMax}회 모두 사용): ${d.nick || '익명'} ${d.amount}치즈`);
+    log(`리롤: ${d.nick || '익명'} ${d.amount}치즈${rerollMax ? ` (${rerollCount + 1}/${rerollMax})` : ''}`);
     if (rerollBusy) return;
     rerollBusy = true;
     rerollCount++;
@@ -2061,6 +2101,9 @@ function onDonation(d) {
     if (!target) return log(`무시(차감 대상 없음): ${d.nick} ${d.amount}`);
     log(`${d.nick || '익명'} ${d.amount}치즈 -> ${target} 차감`);
     return subCheese(target, d.amount);
+  }
+  if (regMin > 0 && d.amount < regMin && !state.items.some((i) => i.key === itemKey(msg))) {
+    return log(`무시(새 항목 등록은 ${regMin.toLocaleString()}치즈 이상): ${d.nick || '익명'} ${d.amount} "${msg}"`);
   }
   addCheese(msg, d.amount, d.nick || '');
   log(`${d.nick || '익명'} ${d.amount}치즈 -> ${msg}`);
@@ -2095,7 +2138,7 @@ $('btnAdd').onclick = () => {
   $('addName').value = ''; $('addAmt').value = '';
   $('addName').focus();
 };
-['minAmt', 'rerollAmt'].forEach((id) => $(id).addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, ''); }));
+['minAmt', 'rerollAmt', 'regAmt', 'rerollMax'].forEach((id) => $(id).addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, ''); }));
 $('addAmt').addEventListener('input', (e) => {
   e.target.value = e.target.value.replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
 });
