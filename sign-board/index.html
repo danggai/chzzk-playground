@@ -7,7 +7,7 @@
 <title>팻말 생성기</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gamja+Flower&family=Hi+Melody&family=Poor+Story&family=Nanum+Pen+Script&family=Gaegu:wght@400;700&family=Jua&family=Do+Hyeon&family=Cute+Font&family=Dongle:wght@400;700&family=Yeon+Sung&family=Single+Day&family=Nanum+Brush+Script&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gamja+Flower&family=Hi+Melody&family=Poor+Story&family=Jua&display=swap">
 <style>
   :root { --bg:#14161a; --panel:#1d2025; --line:#2c3037; --text:#e8eaed; --sub:#8b919a; --accent:#00ffa3; --danger:#ff5d5d; }
   * { box-sizing:border-box; }
@@ -117,20 +117,33 @@
   // 글자를 맞춰 넣을 영역 (손 위쪽 공간 기준)
   const TEXT_BOX = { x0: 250, y0: 100, x1: 1035, y1: 575 };
 
+  // url 이 있는 폰트는 눈누(jsDelivr)에서 불러온다. 없으면 구글 폰트.
+  const NOON = 'https://fastly.jsdelivr.net/gh/projectnoonnu/';
+  const UHBEE = (f) => NOON + 'noonfonts_five@.2.0/UhBee' + f + '.woff';
   const FONTS = [
-    { name: '감자꽃 (망가진 손글씨)', family: 'Gamja Flower' },
-    { name: '하이멜로디', family: 'Hi Melody' },
-    { name: '푸어스토리', family: 'Poor Story' },
-    { name: '나눔손글씨 펜', family: 'Nanum Pen Script' },
-    { name: '나눔손글씨 붓', family: 'Nanum Brush Script' },
-    { name: '개구 굵게', family: 'Gaegu', weight: 700 },
-    { name: '싱글데이', family: 'Single Day' },
-    { name: '주아 (귀여운 글씨)', family: 'Jua' },
-    { name: '도현', family: 'Do Hyeon' },
-    { name: '귀여운 폰트', family: 'Cute Font' },
-    { name: '동글 굵게', family: 'Dongle', weight: 700 },
-    { name: '연성', family: 'Yeon Sung' },
+    { group: '망가진 손글씨', name: '감자꽃', family: 'Gamja Flower' },
+    { group: '망가진 손글씨', name: '어비 지슉지슉', family: 'UhBee Jisyukjisyuk', url: UHBEE('Jisyukjisyuk') },
+    { group: '망가진 손글씨', name: '어비 찌빠빠', family: 'UhBee JJIBBABBA', url: UHBEE('JJIBBABBA') },
+    { group: '망가진 손글씨', name: '어비 쌀', family: 'UhBee Rice', url: UHBEE('Rice') },
+    { group: '망가진 손글씨', name: '어비 컹컹', family: 'UhBee KeongKeong', url: UHBEE('KeongKeong') },
+    { group: '망가진 손글씨', name: '어비 혜키', family: 'UhBee Hyeki', url: UHBEE('Hyeki') },
+    { group: '망가진 손글씨', name: '어비 세현', family: 'UhBee Se_hyun', url: UHBEE('Se_hyun') },
+    { group: '망가진 손글씨', name: '어비 지글', family: 'UhBee ZIGLE', url: UHBEE('ZIGLE') },
+    { group: '망가진 손글씨', name: '어비 버찌', family: 'UhBee BEOJJI', url: UHBEE('BEOJJI') },
+    { group: '깔끔한 손글씨', name: '하이멜로디', family: 'Hi Melody' },
+    { group: '깔끔한 손글씨', name: '푸어스토리', family: 'Poor Story' },
+    { group: '깔끔한 손글씨', name: '오뮤 다예쁨', family: 'omyu pretty', url: NOON + 'noonfonts_2304-01@1.0/omyu_pretty.woff2' },
+    { group: '깔끔한 손글씨', name: '도브메이요', family: 'Dovemayo gothic', url: NOON + 'noonfonts_2302@1.1/Dovemayo_gothic.woff2' },
+    { group: '깔끔한 손글씨', name: '교보 손글씨', family: 'Kyobo Hand', url: NOON + 'noonfonts_20-04@1.0/KyoboHand.woff' },
+    { group: '귀여운 글씨', name: '주아', family: 'Jua' },
+    { group: '귀여운 글씨', name: '카페24 써라운드', family: 'Cafe24 Ssurround', url: NOON + 'noonfonts_2105_2@1.0/Cafe24Ssurround.woff' },
+    { group: '귀여운 글씨', name: '배민 한나 Pro', family: 'BM Hanna Pro', url: NOON + 'noonfonts_seven@1.0/BMHANNAPro.woff' },
+    { group: '귀여운 글씨', name: '여기어때 잘난체', family: 'Yg Jalnan', url: NOON + 'noonfonts_four@1.2/JalnanOTF00.woff' },
   ];
+  // 눈누 폰트 @font-face 등록 (실제 다운로드는 선택할 때만 일어남)
+  document.head.appendChild(Object.assign(document.createElement('style'), {
+    textContent: FONTS.filter(f => f.url).map(f => `@font-face{font-family:"${f.family}";src:url("${f.url}");font-display:swap;}`).join('\n'),
+  }));
   const PRESETS = {
     messy: { font: 'Gamja Flower', stroke: 3, mess: 70, size: 92, lineh: 115, spacing: 10 },
     cute:  { font: 'Jua', stroke: 0, mess: 0, size: 80, lineh: 105, spacing: 0 },
@@ -146,7 +159,12 @@
   const base = new Image();
 
   const fontSel = $('font');
-  FONTS.forEach((f, i) => { const o = document.createElement('option'); o.value = i; o.textContent = f.name; fontSel.appendChild(o); });
+  const groups = {};
+  FONTS.forEach((f, i) => {
+    let g = groups[f.group];
+    if (!g) { g = groups[f.group] = document.createElement('optgroup'); g.label = f.group; fontSel.appendChild(g); }
+    const o = document.createElement('option'); o.value = i; o.textContent = f.name; g.appendChild(o);
+  });
 
   let seed = 20261122;
   let textDirty = true;
@@ -299,10 +317,16 @@
   }
 
   // ---------- 합성 ----------
-  let raf = 0;
-  function requestRender(text) { if (text) textDirty = true; if (!raf) raf = requestAnimationFrame(render); }
+  // rAF가 늦게 도는 환경(백그라운드 탭 등)에서도 갱신되도록 타이머를 같이 건다
+  let raf = 0, timer = 0;
+  function requestRender(text) {
+    if (text) textDirty = true;
+    if (!raf) raf = requestAnimationFrame(render);
+    if (!timer) timer = setTimeout(render, 60);
+  }
   function render() {
-    raf = 0;
+    cancelAnimationFrame(raf); clearTimeout(timer);
+    raf = 0; timer = 0;
     if (!base.complete || !base.naturalWidth) return;
     if (textDirty) { textDirty = false; renderText(); }
     ictx.globalCompositeOperation = 'source-over';
@@ -390,7 +414,11 @@
   ['size', 'stroke', 'lineh', 'spacing', 'mess', 'color'].forEach(id => $(id).addEventListener('input', () => { syncOutputs(); requestRender(true); }));
   $('text').addEventListener('input', loadFontAndRender);
   fontSel.addEventListener('change', loadFontAndRender);
-  $('shuffle').addEventListener('click', () => { seed = (Math.random() * 2 ** 31) | 0; requestRender(true); });
+  $('shuffle').addEventListener('click', () => {
+    seed = (Math.random() * 2 ** 31) | 0;
+    if (val('mess') === 0) { $('mess').value = 70; syncOutputs(); toast('망가짐이 0이라 70으로 올렸어요'); }
+    requestRender(true);
+  });
 
   async function loadFontAndRender() {
     const f = FONTS[val('font')];
