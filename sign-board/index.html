@@ -475,9 +475,10 @@
   }
   async function save() {
     const b = await blob();
-    const name = ($('text').value.replace(/\s+/g, ' ').trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 30) || '도마');
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(b); a.download = `도마_${name}.png`;
+    a.href = URL.createObjectURL(b); a.download = `도마_${stamp}.png`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
