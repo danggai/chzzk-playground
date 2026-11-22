@@ -1065,6 +1065,14 @@ function addCheese(name, amount, nick) {
   });
 }
 
+// "OOO 차감"이면 차감 대상 이름(OOO)을, 아니면 null을 돌려준다
+// 띄어쓰기("차 감", "OOO차감")와 끝 군더더기("차감!!", "차감ㄱ")는 무시
+function subTarget(text) {
+  const body = stripTail(normalize(text || ''));
+  const SUB_RE = /\s*차\s*감$/;
+  return SUB_RE.test(body) ? body.replace(SUB_RE, '').trim() : null;
+}
+
 function subCheese(name, amount) {
   const key = itemKey(name);
   let found = state.items.find((i) => i.key === key);
@@ -2249,12 +2257,9 @@ function onDonation(d) {
   if (state.phase !== 'open') return log(`무시(접수 중 아님): ${d.nick} ${d.amount} "${msg}"`);
   if (d.amount < minCheese) return log(`무시(최소 ${minCheese.toLocaleString()}치즈 미만): ${d.nick} ${d.amount}`);
   if (!msg) return log(`무시(메시지 없음): ${d.nick} ${d.amount}`);
-  // "OOO 차감" 인식: 띄어쓰기("차 감", "OOO차감")와 끝 군더더기("차감!!", "차감ㄱ")는 무시
-  const subBody = stripTail(msg);
-  const SUB_RE = /\s*차\s*감$/;
-  if (SUB_RE.test(subBody)) {
+  const target = subTarget(msg);
+  if (target !== null) {
     if (!subOn) return log(`무시(차감 기능이 꺼져 있음, 치즈 설정에서 켜 주세요): ${d.nick || '익명'} ${d.amount} "${msg}"`);
-    const target = subBody.replace(SUB_RE, '').trim();
     if (!target) return log(`무시(차감 대상 없음): ${d.nick} ${d.amount}`);
     log(`${d.nick || '익명'} ${d.amount}치즈 -> ${target} 차감`);
     return subCheese(target, d.amount);
@@ -2292,7 +2297,9 @@ $('btnAdd').onclick = () => {
   let amt = parseInt($('addAmt').value, 10);
   if (!Number.isFinite(amt)) amt = minCheese;   // 치즈를 비워 두면 최소 치즈로 추가
   if (!normalize(name) || !amt) return;
-  if (amt < 0) subCheese(name, -amt);
+  const subName = subTarget(name);                 // 직접 입력은 차감 스위치와 상관없이 "OOO 차감"이면 차감
+  if (subName) subCheese(subName, Math.abs(amt));
+  else if (amt < 0) subCheese(name, -amt);
   else addCheese(name, amt);
   $('addName').value = ''; $('addAmt').value = '';
   syncAddAmtHint();
