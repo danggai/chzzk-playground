@@ -91,7 +91,15 @@
   #list li.similar.dropt, #list li.similar.dragging { animation:none; }
   #list li.similar.dropt { outline-color:var(--accent); }
   #list li .num { cursor:text; }
-  #list li .name { justify-self:start; max-width:100%; padding:0 3px; margin-left:-3px; }
+  /* 마우스를 올리면 부분별 동작이 보이게: 줄=on/off, 이름=수정, 숫자=치즈 수정, 색 점=끌어서 합치기 */
+  #list li:not(.gone):not(.ghost):hover { background:rgba(255,255,255,.045); }
+  #list li .name { justify-self:start; max-width:100%; padding:0 3px; margin-left:-3px; cursor:text; border-radius:4px; transition:background .12s; }
+  #list li .name:hover { background:rgba(255,255,255,.07); text-decoration:underline dotted #8b919a; text-underline-offset:3px; }
+  #list li .name:hover::after { content:' ✎'; color:#8b919a; font-size:12px; }
+  #list li .num:hover { text-decoration:underline dotted #8b919a; text-underline-offset:3px; }
+  #list li .dot { position:relative; cursor:grab; }
+  #list li:hover .dot { background:transparent !important; }
+  #list li:hover .dot::before { content:'⠿'; position:absolute; inset:-4px -2px; display:flex; align-items:center; justify-content:center; color:#8b919a; font-size:14px; line-height:1; }
   #list li .nedit { field-sizing:content; width:auto; min-width:3em; max-width:100%; padding:2px 6px; font-size:14px; border-radius:6px; }
   #list li .cedit { width:84px; padding:2px 6px; font-size:14px; text-align:right; border-radius:6px; }
   #list li.off .name, #list li.off .num, #list li.off .pct { opacity:.4; text-decoration:line-through; }
