@@ -66,6 +66,14 @@
   button.primary { background:var(--accent); color:#04281a; border-color:var(--accent); font-weight:700; }
   button.danger { color:var(--danger); }
   button:disabled { opacity:.4; cursor:not-allowed; }
+  /* 버튼 반응: 올리면 살짝 밝아지고 떠오름, 누르면 눌림 (transform 대신 scale/translate라 위치용 transform과 안 겹침) */
+  button { transition:background .15s, border-color .15s, filter .15s, box-shadow .2s, scale .08s ease-out, translate .15s; }
+  button:not(:disabled):hover { translate:0 -1px; }
+  button:not(:disabled):active { scale:.96; translate:0 0; filter:brightness(.9); transition-duration:.05s; }
+  button.primary:not(:disabled):hover { filter:brightness(1.07); box-shadow:0 4px 16px rgba(0,255,163,.28); }
+  button.warn:not(:disabled):hover { filter:brightness(1.06); box-shadow:0 4px 16px rgba(255,210,77,.28); }
+  button.danger:not(:disabled):hover { border-color:var(--danger); }
+  button.spin:not(:disabled):hover { translate:0 -2px; box-shadow:0 8px 28px rgba(0,255,163,.35); }
   .badge { display:inline-block; padding:2px 8px; border-radius:99px; font-size:12px; background:#2a2f37; }
   .badge.on { background:#0c3b2a; color:var(--accent); }
   .badge.open { background:#3b320c; color:#ffd24d; }
