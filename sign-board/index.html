@@ -82,7 +82,7 @@
 
     <section class="panel">
       <h2>글자</h2>
-      <textarea id="text" spellcheck="false">내일
+      <textarea id="text" spellcheck="false" placeholder="내일&#10;데뷔">내일
 데뷔</textarea>
       <div class="seg">
         <button class="btn" data-preset="messy">망가진 손글씨</button>
@@ -450,6 +450,14 @@
   document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => applyPreset(b.dataset.preset)));
   ['size', 'stroke', 'lineh', 'spacing', 'mess', 'color'].forEach(id => $(id).addEventListener('input', () => { syncOutputs(); requestRender(true); }));
   $('text').addEventListener('input', loadFontAndRender);
+  // 기본 문구 그대로면 입력하러 들어올 때 비우고, 비운 채로 나가면 다시 채움
+  const DEFAULT_TEXT = '내일\n데뷔';
+  $('text').addEventListener('focus', () => {
+    if ($('text').value.replace(/\r/g, '') === DEFAULT_TEXT) { $('text').value = ''; requestRender(true); }
+  });
+  $('text').addEventListener('blur', () => {
+    if (!$('text').value.trim()) { $('text').value = DEFAULT_TEXT; loadFontAndRender(); }
+  });
   fontSel.addEventListener('change', loadFontAndRender);
   $('shuffle').addEventListener('click', () => {
     seed = (Math.random() * 2 ** 31) | 0;
