@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<!-- sign-board v1.0.0 -->
+<!-- sign-board v1.1.0 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>팻말 생성기</title>
+<title>쨈하니 도마생성기</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gamja+Flower&family=Hi+Melody&family=Poor+Story&family=Jua&display=swap">
@@ -59,7 +59,7 @@
 <body>
 <div class="wrap">
   <aside class="side">
-    <div class="top"><a href="../">← 메인</a><h1>팻말 생성기</h1></div>
+    <div class="top"><a href="../">← 메인</a><h1>쨈하니 도마생성기</h1></div>
 
     <section class="panel">
       <h2>글자</h2>
@@ -81,7 +81,7 @@
       </div>
     </section>
 
-    <p class="hint">글자는 팻말 안에서 자동으로 크기가 맞춰져요. 손에 가려지는 부분은 손 뒤로 들어갑니다.<br>단축키: Ctrl+Z 되돌리기 · Ctrl+Shift+C 복사 · Ctrl+S 저장</p>
+    <p class="hint">글자는 도마 안에서 자동으로 크기가 맞춰져요. 손에 가려지는 부분은 손 뒤로 들어갑니다.<br>단축키: Ctrl+Z 되돌리기 · Ctrl+Shift+C 복사 · Ctrl+S 저장</p>
   </aside>
 
   <main class="stage">
@@ -184,12 +184,27 @@
     x.drawImage(base, 0, 0);
     const src = x.getImageData(0, 0, W, H), d = src.data;
     const out = x.createImageData(W, H), o = out.data;
-    for (let y = BOARD.y0; y <= BOARD.y1; y++) for (let xx = BOARD.x0; xx <= BOARD.x1; xx++) {
-      const i = (y * W + xx) * 4, r = d[i], g = d[i + 1], b = d[i + 2];
+    // 흰 면 판정: 무채색이고 밝은 픽셀 (피부/액자처럼 색이 있으면 제외)
+    const alphaAt = (p) => {
+      const i = p * 4, r = d[i], g = d[i + 1], b = d[i + 2];
       const mn = Math.min(r, g, b), mx = Math.max(r, g, b);
-      if (mx - mn > 16) continue;               // 피부/액자처럼 색이 있는 픽셀 제외
-      const a = Math.max(0, Math.min(1, (mn - 185) / 35));
-      o[i + 3] = a * 255;
+      if (mx - mn > 16) return 0;
+      return Math.max(0, Math.min(1, (mn - 185) / 35));
+    };
+    // 팻말 가운데에서 이어진 흰 면만 채운다 → 손 안쪽의 밝은 하이라이트는 제외됨
+    const seen = new Uint8Array(W * H);
+    const start = ((BOARD.y0 + BOARD.y1) >> 1) * W + ((BOARD.x0 + BOARD.x1) >> 1);
+    const stack = [start]; seen[start] = 1;
+    while (stack.length) {
+      const p = stack.pop(), a = alphaAt(p);
+      if (a <= 0) continue;
+      o[p * 4 + 3] = a * 255;
+      if (a < 0.5) continue;                     // 가장자리 반투명 픽셀에서는 더 번지지 않음
+      const px = p % W, py = (p / W) | 0;
+      if (px > BOARD.x0 && !seen[p - 1]) { seen[p - 1] = 1; stack.push(p - 1); }
+      if (px < BOARD.x1 && !seen[p + 1]) { seen[p + 1] = 1; stack.push(p + 1); }
+      if (py > BOARD.y0 && !seen[p - W]) { seen[p - W] = 1; stack.push(p - W); }
+      if (py < BOARD.y1 && !seen[p + W]) { seen[p + W] = 1; stack.push(p + W); }
     }
     maskLayer.getContext('2d').putImageData(out, 0, 0);
   }
@@ -438,9 +453,9 @@
   }
   async function save() {
     const b = await blob();
-    const name = ($('text').value.replace(/\s+/g, ' ').trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 30) || '팻말');
+    const name = ($('text').value.replace(/\s+/g, ' ').trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 30) || '도마');
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(b); a.download = `팻말_${name}.png`;
+    a.href = URL.createObjectURL(b); a.download = `도마_${name}.png`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
