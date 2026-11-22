@@ -77,6 +77,11 @@
   #list li { cursor:pointer; }
   #list li.dragging { opacity:.35; }
   #list li.dropt { outline:2px dashed var(--accent); outline-offset:-2px; background:rgba(0,255,163,.1); }
+  .mtoast { position:fixed; left:16px; bottom:16px; z-index:50; max-width:min(360px, calc(100vw - 32px)); padding:10px 14px; border-radius:10px; border:1px solid #ffc83d; background:#262a31; color:#ffe08a; font-size:13px; line-height:1.45; box-shadow:0 8px 24px rgba(0,0,0,.5); pointer-events:none; opacity:0; transform:translateY(12px); transition:opacity .25s, transform .25s; }
+  .mtoast.show { opacity:1; transform:none; }
+  .mtoast b { color:#fff; }
+  #list li.similar { outline:2px dashed #ffc83d; outline-offset:-2px; animation:simpulse 1.2s ease-in-out infinite; }
+  @keyframes simpulse { 50% { background:rgba(255,200,61,.14); } }
   #list li .num { cursor:text; }
   #list li .cedit { width:84px; padding:2px 6px; font-size:14px; text-align:right; border-radius:6px; }
   #list li.off .name, #list li.off .num, #list li.off .pct { opacity:.4; text-decoration:line-through; }
@@ -511,6 +516,7 @@ function mergeItems(src, dst) {
   }
   if (src.anonN) dst.anonN = (dst.anonN || 0) + src.anonN;
   log(`합치기: ${src.name} (${src.cheese.toLocaleString()}) -> ${dst.name}`);
+  if (mergeHint && (mergeHint.a === src || mergeHint.b === src)) { mergeHint = null; mergeToast && mergeToast.classList.remove('show'); }
   save();
   removeItem(src, null);
   render();
@@ -584,6 +590,90 @@ function save() {
 
 function normalize(s) {
   return s.trim().replace(/\s+/g, ' ');
+}
+
+// 후원 문구 끝에 붙는 군더더기 (ㄱ?, ㄱㄱ, ㅋㅋ, 가자!! 등)
+const TAIL_NOISE = /(?:[\s\p{P}\p{S}\p{Extended_Pictographic}️]+|[ㄱㅋㅎㅠㅜ]+|ㄱㄱㅆ|고고+|가즈아+|가자|하자|해줘요?|해주세요|ㄱ+)$/u;
+function stripTail(s) {
+  let prev;
+  do { prev = s; s = s.replace(TAIL_NOISE, ''); } while (s && s !== prev);
+  return s;
+}
+// 화면에 보여줄 이름: 끝 군더더기만 떼고 띄어쓰기는 유지
+function cleanName(s) {
+  const n = normalize(s);
+  return stripTail(n).trim() || n;
+}
+// 같은 항목인지 판단하는 키: 띄어쓰기·문장부호·이모지·대소문자 무시 + 끝 군더더기 제거
+function itemKey(s) {
+  const n = normalize(s).normalize('NFC').toLowerCase();
+  const k = stripTail(n).replace(/[\s\p{P}\p{S}\p{Extended_Pictographic}️]+/gu, '');
+  return k || n;
+}
+
+// 저장된 항목도 새 키로 다시 맞추고, 같은 키가 된 항목은 합친다
+(() => {
+  const byKey = new Map();
+  state.items = state.items.filter((it) => {
+    it.key = itemKey(it.name);
+    const first = byKey.get(it.key);
+    if (!first) { byKey.set(it.key, it); return true; }
+    first.cheese += it.cheese;
+    if (it.donors) { first.donors = first.donors || {}; for (const n in it.donors) first.donors[n] = (first.donors[n] || 0) + it.donors[n]; }
+    if (it.anonN) first.anonN = (first.anonN || 0) + it.anonN;
+    return false;
+  });
+})();
+
+// ---------- 비슷한 항목 찾기 (합치기 힌트용, 자동으로 합치지는 않음) ----------
+function jamo(s) {
+  const out = [];
+  for (const ch of s) {
+    const c = ch.charCodeAt(0) - 0xAC00;
+    if (c >= 0 && c < 11172) { out.push(c / 588 | 0, 100 + ((c % 588) / 28 | 0)); if (c % 28) out.push(200 + c % 28); }
+    else out.push(ch);
+  }
+  return out;
+}
+function editDist(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+function isSubseq(s, l) { let i = 0; for (const ch of l) if (ch === s[i]) i++; return i === s.length; }
+function looksSimilar(a, b) {
+  if (a === b) return false;
+  const [s, l] = a.length <= b.length ? [a, b] : [b, a];
+  if (s.length >= 2 && l.includes(s)) return true;                                       // 롤토 / 롤토체스
+  if (s.length >= 2 && s[0] === l[0] && isSubseq(s, l) && s.length / l.length >= 0.3) return true; // 이터리 / 이터널리턴, 배그 / 배틀그라운드
+  const ja = jamo(a), jb = jamo(b);
+  if (Math.min(ja.length, jb.length) < 4) return false;
+  return editDist(ja, jb) <= Math.max(1, Math.floor(Math.max(ja.length, jb.length) * 0.15)); // 오타
+}
+function findSimilar(it) {
+  let best = null;
+  for (const o of state.items) {
+    if (o === it || removing.has(o)) continue;
+    if (looksSimilar(it.key, o.key) && (!best || o.cheese > best.cheese)) best = o;
+  }
+  return best;
+}
+
+// 비슷한 항목이 생기면 잠깐 토스트 + 두 줄 깜빡임
+let mergeHint = null, mergeHintT = 0, mergeToast = null;
+function showMergeHint(a, b) {
+  mergeHint = { a, b };
+  if (!mergeToast) { mergeToast = document.createElement('div'); mergeToast.className = 'mtoast'; document.body.appendChild(mergeToast); }
+  const q = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  mergeToast.innerHTML = `💡 <b>${q(a.name)}</b> ↔ <b>${q(b.name)}</b> 비슷해요<br>같은 거면 끌어다 놓아서 합쳐 주세요`;
+  void mergeToast.offsetWidth; // 리플로우 후 클래스 추가 → 전환 애니메이션
+  mergeToast.classList.add('show');
+  clearTimeout(mergeHintT);
+  mergeHintT = setTimeout(() => { mergeToast.classList.remove('show'); mergeHint = null; render(); }, 6000);
 }
 
 function colorOf(name) {
@@ -770,7 +860,7 @@ function showGain(it, amount, isNew, beforePct, afterPct) {
 }
 
 function addCheese(name, amount, nick) {
-  const key = normalize(name).toLowerCase();
+  const key = itemKey(name);
   const found = state.items.find((i) => i.key === key);
   const before = state.items.reduce((a, i) => a + eff(i), 0);
   const beforePct = found && before ? (eff(found) / before) * 100 : 0;
@@ -779,9 +869,11 @@ function addCheese(name, amount, nick) {
   else {
     const ci = state.nextCi || 0;
     state.nextCi = ci + 1;
-    const it = { key, name: normalize(name), cheese: amount, ci, donors: {} };
+    const it = { key, name: cleanName(name), cheese: amount, ci, donors: {} };
     target = it;
+    const sim = findSimilar(it);
     state.items.push(it);
+    if (sim) { showMergeHint(it, sim); log(`비슷한 항목: ${it.name} ↔ ${sim.name} (끌어다 놓으면 합쳐져요)`); }
     visMap.set(it, 0);
     fresh.add(it);
     tween(it, 0, 1, 500, () => visMap.delete(it));
@@ -803,7 +895,7 @@ function addCheese(name, amount, nick) {
 }
 
 function subCheese(name, amount) {
-  const key = normalize(name).toLowerCase();
+  const key = itemKey(name);
   const found = state.items.find((i) => i.key === key);
   if (!found) return log(`차감 실패(항목 없음): ${normalize(name)}`);
   if (spinning || removing.has(found)) return log('차감 실패(돌리는 중 또는 삭제 중)');
@@ -951,6 +1043,7 @@ function render() {
 
   const list = $('list');
   list.innerHTML = '';
+  if (mergeHint && !(state.items.includes(mergeHint.a) && state.items.includes(mergeHint.b))) mergeHint = null;
   const sorted = [...state.items].sort((x, y) => y.cheese - x.cheese);
   for (const it of sorted) {
     const li = document.createElement('li');
@@ -970,6 +1063,7 @@ function render() {
     li.children[3].className = 'pct';
     li.children[4].onclick = (e) => { e.stopPropagation(); removeItem(it, li); };
     if (it.off) li.classList.add('off');
+    if (mergeHint && (mergeHint.a === it || mergeHint.b === it)) li.classList.add('similar');
     li.title = it.off ? '클릭: 룰렛에 다시 포함' : '클릭: 룰렛에서 임시 제외';
     li.onclick = () => toggleOff(it);
     li.draggable = true;

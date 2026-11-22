@@ -33,7 +33,7 @@
   .btn:hover { background:#2f343c; }
   .btn.on { border-color:var(--accent); color:var(--accent); background:rgba(0,255,163,.1); }
   .btn.primary { border-color:var(--accent); background:var(--accent); color:#06281b; }
-  .btn.primary:hover { filter:brightness(1.08); }
+  .btn.primary:hover:not(:active) { filter:brightness(1.08); }
   .btn.danger:hover { border-color:var(--danger); color:var(--danger); }
   .btn.small { flex:0 0 auto; padding:7px 10px; font-size:13px; }
   .stage { display:flex; flex-direction:column; gap:10px; min-width:0; }
@@ -46,7 +46,14 @@
   #cursor { position:absolute; pointer-events:none; border:1.5px solid rgba(0,0,0,.7); box-shadow:0 0 0 1px rgba(255,255,255,.8); border-radius:50%; transform:translate(-50%,-50%); display:none; }
   .export { display:flex; gap:8px; }
   .export .btn { padding:13px; font-size:16px; }
-  .hint { font-size:12px; color:var(--sub); margin:0; }
+  .keys { display:grid; grid-template-columns:auto 1fr; gap:8px 12px; align-items:center; margin:0; padding:0 4px; font-size:13px; color:var(--sub); }
+  .keys dt { display:flex; gap:4px; }
+  .keys dd { margin:0; }
+  kbd { min-width:24px; padding:2px 7px; border-radius:5px; border:1px solid #3a3f48; border-bottom-width:3px; background:#262a31; color:var(--text); font:600 12px/1.4 system-ui,sans-serif; text-align:center; }
+  /* 누를 때 살짝 눌리는 효과 */
+  .btn, .seg .btn { transition:background .12s, border-color .12s, transform .08s; }
+  .btn:active { transform:translateY(1px) scale(.97); filter:brightness(.92); }
+  .btn.primary:active { filter:brightness(.92); }
   .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); background:#262a31; border:1px solid var(--accent); color:var(--text); padding:10px 18px; border-radius:999px; font-size:14px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
   .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   .toast.err { border-color:var(--danger); }
@@ -81,7 +88,11 @@
       </div>
     </section>
 
-    <p class="hint">글자는 도마 안에서 자동으로 크기가 맞춰져요. 손에 가려지는 부분은 손 뒤로 들어갑니다.<br>단축키: Ctrl+Z 되돌리기 · Ctrl+Shift+C 복사 · Ctrl+S 저장</p>
+    <dl class="keys">
+      <dt><kbd>Ctrl</kbd><kbd>Z</kbd></dt><dd>되돌리기</dd>
+      <dt><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>C</kbd></dt><dd>복사</dd>
+      <dt><kbd>Ctrl</kbd><kbd>S</kbd></dt><dd>저장</dd>
+    </dl>
   </aside>
 
   <main class="stage">
