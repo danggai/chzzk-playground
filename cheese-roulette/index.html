@@ -126,6 +126,7 @@
   input.bump { animation:inputbump .5s ease-out; border-color:#b57bff; }
   .chk input { flex:none; width:16px; height:16px; min-width:0; padding:0; margin:2px 0 0; border-radius:4px; accent-color:#b57bff; cursor:pointer; }
   .chk small { display:block; color:#b57bff; font-weight:700; margin-top:2px; }
+  #addAmt.dflt::placeholder { color:var(--text); opacity:.75; }
   .chk.lim { align-items:center; font-size:13px; color:var(--sub); }
   .chk.lim input { width:56px; height:auto; padding:3px 6px; margin:0; text-align:center; font-size:13px; border-radius:6px; accent-color:auto; }
   .rerolltip { position:absolute; top:6vh; left:50%; transform:translateX(-50%); z-index:2; padding:12px 26px; border-radius:999px; white-space:nowrap;
@@ -2076,6 +2077,7 @@ $('minAmt').onchange = () => {
   minCheese = Math.max(0, parseInt($('minAmt').value, 10) || 0);
   $('minAmt').value = minCheese;
   try { localStorage.setItem('cheese-roulette-min', String(minCheese)); } catch {}
+  syncAddAmtHint();
 };
 
 let rerollBusy = false;
@@ -2131,13 +2133,26 @@ $('btnReset').onclick = () => {
   save(); render();
 };
 $('btnAdd').onclick = () => {
-  const name = $('addName').value, amt = parseInt($('addAmt').value, 10);
+  const name = $('addName').value;
+  let amt = parseInt($('addAmt').value, 10);
+  if (!Number.isFinite(amt)) amt = minCheese;   // 치즈를 비워 두면 최소 치즈로 추가
   if (!normalize(name) || !amt) return;
   if (amt < 0) subCheese(name, -amt);
   else addCheese(name, amt);
   $('addName').value = ''; $('addAmt').value = '';
+  syncAddAmtHint();
   $('addName').focus();
 };
+// 항목명을 입력했는데 치즈 칸이 비어 있으면 최소 치즈를 흐리게 보여주고, 치즈 칸에 들어가면 빈칸으로
+function syncAddAmtHint() {
+  const a = $('addAmt');
+  const show = normalize($('addName').value) && !a.value && document.activeElement !== a && minCheese > 0;
+  a.placeholder = show ? minCheese.toLocaleString() : (document.activeElement === a ? '' : '±치즈');
+  a.classList.toggle('dflt', !!show);
+}
+$('addName').addEventListener('input', syncAddAmtHint);
+$('addAmt').addEventListener('focus', syncAddAmtHint);
+$('addAmt').addEventListener('blur', syncAddAmtHint);
 ['minAmt', 'rerollAmt', 'regAmt', 'rerollMax'].forEach((id) => $(id).addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, ''); }));
 $('addAmt').addEventListener('input', (e) => {
   e.target.value = e.target.value.replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
