@@ -194,6 +194,9 @@
   .lostbar[hidden] { display:none; }
   @keyframes lostPulse { 50% { opacity:.65; } }
   .ver { position:absolute; left:14px; bottom:10px; z-index:5; font-size:11px; color:var(--sub); opacity:.6; pointer-events:none; }
+  .home { position:absolute; top:14px; left:14px; z-index:6; display:inline-flex; align-items:center; gap:4px; padding:5px 11px; border-radius:999px; background:rgba(20,22,26,.82); border:1px solid var(--line); color:var(--sub); font-size:12px; text-decoration:none; transition:color .12s, border-color .12s, transform .08s; }
+  .home:hover { color:var(--accent); border-color:var(--accent); }
+  .home:active { transform:scale(.96); }
   .hud { position:absolute; top:14px; right:14px; z-index:5; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; max-width:calc(100% - 28px); pointer-events:none; }
   .pill { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; background:rgba(20,22,26,.82); border:1px solid var(--line);
     font-size:13px; font-weight:600; backdrop-filter:blur(4px); max-width:240px; }
@@ -210,6 +213,16 @@
   .chprev img { width:24px; height:24px; border-radius:50%; object-fit:cover; background:#2a2f37; }
   .chprev b { color:var(--text); }
   .chinfo[hidden] { display:none; }
+  .pill.wait .dot2 { background:#ffd24d; animation:blink 1.6s infinite; }
+  .badge.wait { background:#3b320c; color:#ffd24d; }
+  .chsearch { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; min-height:0; }
+  .chsearch[hidden] { display:none; }
+  .chsearch li { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:#14171b; cursor:pointer; font-size:13px; transition:border-color .12s, background .12s; }
+  .chsearch li:hover, .chsearch li.sel { border-color:var(--accent); background:rgba(0,255,163,.07); }
+  .chsearch img { width:26px; height:26px; border-radius:50%; object-fit:cover; background:#2a2f37; flex:none; }
+  .chsearch .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); font-weight:600; }
+  .chsearch .fl { color:var(--sub); font-size:11px; flex:none; }
+  .chsearch .lv { flex:none; padding:1px 6px; border-radius:4px; background:#ff3d57; color:#fff; font-size:10px; font-weight:800; }
   .chinfo .chtext { flex:1; min-width:0; }
   .chinfo .disc { margin-left:auto; flex:none; padding:6px 12px; }
   #connPanel.on .row { display:none; }
@@ -354,6 +367,7 @@
     <button id="btnStop" class="warn stopbtn" hidden>멈춤</button>
     <div class="result" id="result"></div>
   </div>
+  <a class="home" href="../" title="메인으로">← 메인</a>
   <div class="hud" id="hud">
     <span class="pill" id="hudChan"><img id="hudImg" alt="" referrerpolicy="no-referrer" hidden><b id="hudName">채널 미설정</b></span>
     <span class="pill" id="hudConn"><i class="dot2"></i><span>끊김</span></span>
@@ -436,10 +450,11 @@
         <button id="btnDisc" class="warn disc">해제</button>
       </div>
       <div class="row">
-        <input id="channel" placeholder="채널 URL 또는 채널 ID">
+        <input id="channel" placeholder="채널 이름, URL 또는 채널 ID">
         <button id="btnConn" class="primary">연결</button>
       </div>
       <div class="chprev" id="chPrev" hidden><img id="chPrevImg" alt="" referrerpolicy="no-referrer" hidden><span id="chPrevName"></span></div>
+      <ul class="chsearch" id="chSearch" hidden></ul>
       <button id="btnSkip" class="cskip">연결 없이 사용</button>
       <div id="manual" class="manual" style="display:none">
         <div class="mtitle" id="mtitle"></div>
@@ -2124,6 +2139,8 @@ async function startClipPoll() {
 const CONN_KEY = 'cheese-roulette-conn';
 const CONN_TTL = 8 * 3600 * 1000;
 let chInfo = null;
+let waitingLive = false, liveWaitTimer = 0, liveWatchTimer = 0;
+const LIVE_WAIT_MS = 30000, LIVE_WATCH_MS = 60000;
 
 let ambUrl = '';
 
@@ -2219,8 +2236,8 @@ function updateHud() {
   const img = $('hudImg');
   if (chInfo && chInfo.image) { img.src = chInfo.image; img.hidden = false; } else img.hidden = true;
   const c = $('hudConn');
-  c.className = 'pill' + (connected ? ' on' : '');
-  c.lastElementChild.textContent = connected ? '연결됨' : '끊김';
+  c.className = 'pill' + (connected ? ' on' : waitingLive ? ' wait' : '');
+  c.lastElementChild.textContent = connected ? '연결됨' : waitingLive ? '방송 대기' : '끊김';
   const ph = $('hudPhase');
   ph.className = 'pill' + (state.phase === 'open' ? ' open' : state.phase === 'closed' ? ' closed' : ' idle');
   ph.lastElementChild.textContent = { idle: '대기', open: '접수 중', closed: '마감' }[state.phase];
@@ -2279,11 +2296,74 @@ async function fetchCh(id) {
 
 const prevBusy = {};
 let prevTimer = null;
+// ---------- 채널 이름 검색 ----------
+const searchUrl = (q) => `https://api.chzzk.naver.com/service/v1/search/channels?keyword=${encodeURIComponent(q)}&offset=0&size=10`;
+const searchCache = {};
+let searchRes = [], searchSel = -1, searchTimer = 0, searchSeq = 0;
+async function searchChannels(q) {
+  q = q.trim();
+  if (searchCache[q]) return searchCache[q];
+  try {
+    const j = await getJson(searchUrl(q), true, (v) => v && v.code === 200);
+    const list = ((j.content && j.content.data) || []).map((d) => d.channel).filter((c) => c && c.channelId).slice(0, 5)
+      .map((c) => ({ id: c.channelId, name: c.channelName, image: c.channelImageUrl || '', followers: c.followerCount || 0, live: !!c.openLive }));
+    return (searchCache[q] = list);
+  } catch { return []; }
+}
+function hideSearch() { $('chSearch').hidden = true; searchRes = []; searchSel = -1; }
+function renderSearch() {
+  const ul = $('chSearch');
+  ul.innerHTML = '';
+  searchRes.forEach((c, i) => {
+    const li = document.createElement('li');
+    if (i === searchSel) li.className = 'sel';
+    const im = document.createElement('img'); im.referrerPolicy = 'no-referrer'; im.alt = ''; if (c.image) im.src = c.image;
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = c.name;
+    const fl = document.createElement('span'); fl.className = 'fl'; fl.textContent = '팔로워 ' + c.followers.toLocaleString();
+    li.append(im, nm);
+    if (c.live) { const lv = document.createElement('span'); lv.className = 'lv'; lv.textContent = 'LIVE'; li.append(lv); }
+    li.append(fl);
+    li.onmousedown = (e) => { e.preventDefault(); choose(c); };
+    ul.appendChild(li);
+  });
+  ul.hidden = !searchRes.length;
+}
+function choose(c) {
+  $('channel').value = c.id;
+  putCh(c.id, { name: c.name, image: c.image });
+  hideSearch();
+  startConnect();
+}
+function scheduleSearch(q) {
+  clearTimeout(searchTimer);
+  if (q.length < 2 || /^https?:|chzzk\.naver/i.test(q)) { hideSearch(); return; }
+  const seq = ++searchSeq;
+  searchTimer = setTimeout(async () => {
+    const list = await searchChannels(q);
+    if (seq !== searchSeq || connected) return;
+    searchRes = list; searchSel = list.length ? 0 : -1;
+    renderSearch();
+    const box = $('chPrev');
+    if (!list.length) { box.hidden = false; $('chPrevImg').hidden = true; $('chPrevName').textContent = '검색 결과가 없어요'; }
+    else box.hidden = true;
+  }, 400);
+}
+$('channel').addEventListener('keydown', (e) => {
+  if ($('chSearch').hidden || !searchRes.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    searchSel = (searchSel + (e.key === 'ArrowDown' ? 1 : -1) + searchRes.length) % searchRes.length;
+    renderSearch();
+  } else if (e.key === 'Escape') hideSearch();
+});
+
 function updatePrev() {
   clearTimeout(prevTimer);
   const box = $('chPrev');
   const m = $('channel').value.match(/[0-9a-f]{32}/i);
-  if (!m || connected) { box.hidden = true; return; }
+  if (connected) { box.hidden = true; hideSearch(); return; }
+  if (!m) { box.hidden = true; scheduleSearch($('channel').value.trim()); return; }
+  hideSearch();
   const id = m[0].toLowerCase();
   const show = (c) => {
     if (!(($('channel').value.match(/[0-9a-f]{32}/i) || [''])[0].toLowerCase() === id)) return;
@@ -2384,6 +2464,7 @@ function ownApi(u) {
   if ((m = u.match(/\/service\/v3\/channels\/([0-9a-f]{32})\/live-detail$/i))) return '/api/live-detail?ch=' + m[1];
   if ((m = u.match(/\/service\/v1\/channels\/([0-9a-f]{32})$/i))) return '/api/channel?ch=' + m[1];
   if ((m = u.match(/\/chats\/access-token\?channelId=([^&]+)/))) return '/api/token?cid=' + m[1];
+  if ((m = u.match(/\/service\/v1\/search\/channels\?keyword=([^&]+)/))) return '/api/search?q=' + m[1];
   return null;
 }
 
@@ -2424,6 +2505,46 @@ function setConn(on) {
   $('connPanel').classList.toggle('on', on);
   renderChInfo();
   log(on ? '채팅 연결됨' : '채팅 연결 끊김');
+  if (on) { setWaiting(false); startLiveWatch(); }
+}
+
+// 방송이 꺼져 있으면 켜질 때까지 주기적으로 확인하다가 자동 연결
+function setWaiting(on) {
+  waitingLive = on;
+  if (!on) clearTimeout(liveWaitTimer);
+  if (!connected) {
+    $('conn').textContent = on ? '방송 대기' : '끊김';
+    $('conn').className = 'badge' + (on ? ' wait' : '');
+    $('btnConn').textContent = on ? '대기 취소' : '연결';
+  }
+  updateHud();
+}
+function waitForLive() {
+  if (!waitingLive) log(`방송이 꺼져 있어요. ${LIVE_WAIT_MS / 1000}초마다 확인해서 켜지면 자동으로 연결합니다`);
+  setWaiting(true);
+  applyDock(true);
+  clearTimeout(liveWaitTimer);
+  liveWaitTimer = setTimeout(() => { if (want && !connected) startConnect(true); }, LIVE_WAIT_MS);
+}
+
+// 연결된 동안 방송 채팅방이 바뀌는지(방송을 새로 켜면 바뀔 수 있음) 확인해서 바뀌면 다시 연결
+function startLiveWatch() {
+  clearInterval(liveWatchTimer);
+  liveWatchTimer = setInterval(async () => {
+    if (!connected || !conn.channel) return;
+    try {
+      const j = await getJson(liveUrl(conn.channel), true, (v) => v && v.code === 200);
+      const cid = j.content && j.content.chatChannelId;
+      if (cid && cid !== conn.chatId && connected) {
+        log('방송 채팅방이 바뀌어서 다시 연결합니다');
+        conn.chatId = cid;
+        conn.token = undefined;
+        putCh(conn.channel, { chatId: cid });
+        try { conn.token = (await getJson(tokenUrl(cid), true)).content.accessToken; } catch { conn.token = null; }
+        openSocket();
+      }
+    } catch {}
+  }, LIVE_WATCH_MS);
 }
 
 function showManual(kind, url) {
@@ -2478,11 +2599,18 @@ function closeSocket() {
   }
 }
 
-async function startConnect() {
+async function startConnect(retry) {
   const raw = $('channel').value.trim();
   const m = raw.match(/[0-9a-f]{32}/i);
-  const id = m ? m[0] : raw;
-  if (!id) return;
+  if (!raw) return;
+  if (!m) {
+    // 채널 이름으로 입력 → 검색해서 선택된(없으면 첫 번째) 채널로 연결
+    const pick = searchSel >= 0 && searchRes[searchSel] ? searchRes[searchSel] : (await searchChannels(raw))[0];
+    if (!pick) return log('채널을 찾지 못했어요: ' + raw);
+    return choose(pick);
+  }
+  const id = m[0];
+  hideSearch();
   $('channel').value = id;
   localStorage.setItem('cheese-roulette-channel', id);
   if (conn.channel !== id) conn = loadCache(id) || { channel: id, chatId: '', token: undefined };
@@ -2490,9 +2618,9 @@ async function startConnect() {
   lostFail = false;
   updLost();
   $('btnConn').disabled = true;
-  $('btnConn').textContent = '연결 중...';
+  $('btnConn').textContent = retry ? '방송 확인 중...' : '연결 중...';
   syncLock();
-  log('연결 시작: ' + id);
+  if (!retry) log('연결 시작: ' + id);
   const pc = chCache[id.toLowerCase()];
   if (!conn.info && pc && pc.name) conn.info = { name: pc.name, image: pc.image };
   if (!conn.chatId && pc && pc.chatId && Date.now() - pc.ts < CHAT_FRESH) conn.chatId = pc.chatId;
@@ -2501,14 +2629,16 @@ async function startConnect() {
   try {
     if (!conn.chatId) {
       try {
-        const j = await getJson(liveUrl(id));
+        const j = await getJson(liveUrl(id), retry);
         conn.chatId = (j.content && j.content.chatChannelId) || '';
         if (conn.chatId) putCh(id, { chatId: conn.chatId });
         if (!conn.chatId) {
+          if (j.content) return waitForLive();   // 채널은 있는데 방송이 꺼져 있음
           want = false;
-          return log('채팅 채널을 찾지 못함 (방송 중인지, 채널 ID가 맞는지 확인)');
+          return log('채널을 찾지 못함 (채널 ID가 맞는지 확인)');
         }
       } catch {
+        if (retry) return waitForLive();         // 대기 중 일시적인 조회 실패는 다음 확인 때 다시
         manualAlt = false;
         return showManual('chat', detailUrl(id));
       }
@@ -2521,7 +2651,7 @@ async function startConnect() {
     openSocket();
   } finally {
     $('btnConn').disabled = false;
-    $('btnConn').textContent = connected ? '해제' : '연결';
+    $('btnConn').textContent = connected ? '해제' : waitingLive ? '대기 취소' : '연결';
     syncLock();
   }
 }
@@ -2628,6 +2758,8 @@ function disconnectNow() {
   {
     userDisc = true;
     want = false;
+    clearInterval(liveWatchTimer);
+    setWaiting(false);
     closeSocket();
     setConn(false);
     hideManual();
@@ -2643,6 +2775,7 @@ function disconnectNow() {
 $('btnDisc').onclick = () => { if (state.phase !== 'open') disconnectNow(); };
 $('btnConn').onclick = () => {
   if (connected) return state.phase === 'open' ? log('접수 중에는 연결 해제 불가') : disconnectNow();
+  if (waitingLive) { log('방송 대기 취소'); return disconnectNow(); }
   startConnect();
 };
 
@@ -2800,8 +2933,16 @@ applyMuteUi();
 render();
 
 {
+  // ?ch=채널ID(또는 채널 URL) 로 열면 그 채널로 바로 연결 (즐겨찾기 / OBS 브라우저 소스용)
+  const qp = new URLSearchParams(location.search).get('ch');
+  const fromUrl = qp && qp.match(/[0-9a-f]{32}/i);
+  if (fromUrl) {
+    $('channel').value = fromUrl[0].toLowerCase();
+    try { localStorage.setItem('cheese-roulette-channel', $('channel').value); } catch {}
+  }
+  // 예전에 연결했던 채널이 있으면 창을 띄우지 않고 바로 연결 (방송 전이면 켜질 때까지 대기)
   const saved = $('channel').value.match(/[0-9a-f]{32}/i);
-  if (saved && loadCache(saved[0])) startConnect();
+  if (saved) { applyDock(true); startConnect(); }
 }
 </script>
 </body>

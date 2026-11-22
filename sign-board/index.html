@@ -7,7 +7,7 @@
 <title>쨈하니 도마생성기</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gamja+Flower&family=Hi+Melody&family=Poor+Story&family=Jua&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gamja+Flower&family=Hi+Melody&family=Jua&display=swap">
 <style>
   :root { --bg:#14161a; --panel:#1d2025; --line:#2c3037; --text:#e8eaed; --sub:#8b919a; --accent:#00ffa3; --danger:#ff5d5d; }
   * { box-sizing:border-box; }
@@ -57,9 +57,21 @@
   .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); background:#262a31; border:1px solid var(--accent); color:var(--text); padding:10px 18px; border-radius:999px; font-size:14px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
   .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   .toast.err { border-color:var(--danger); }
+  .toolbar .ico { display:none; }
   @media (max-width:820px) {
-    .wrap { grid-template-columns:1fr; padding:12px; }
-    .stage { order:-1; }
+    .wrap { grid-template-columns:1fr; padding:12px; gap:10px; align-content:start; }
+    /* 미리보기·도구·저장 버튼을 각각 그리드 칸으로 풀어서 미리보기만 위에 고정 */
+    .stage { display:contents; }
+    .canvas-box { order:-3; position:sticky; top:0; z-index:10; aspect-ratio:885/555; box-shadow:0 6px 16px rgba(0,0,0,.55); }
+    /* 도마 부분만 잘라서 확대 (원본 x 200~1085, y 60~615 영역) — 저장되는 이미지는 그대로 전체 */
+    canvas#view { width:calc(100% * 1280 / 885); max-width:none; margin-left:calc(-100% * 200 / 885); margin-top:calc(-100% * 60 / 885); }
+    .toolbar { order:-2; flex-wrap:nowrap; gap:6px; padding:6px 8px; }
+    .toolbar .lbl, .toolbar .sep { display:none; }
+    .toolbar .ico { display:inline; }
+    .toolbar input[type=range] { width:64px; min-width:0; flex:1; }
+    .toolbar label:first-of-type { flex:1; min-width:0; }
+    .toolbar .btn.small { padding:7px 9px; }
+    .export { order:-1; }
   }
 </style>
 </head>
@@ -97,15 +109,15 @@
 
   <main class="stage">
     <div class="toolbar">
-      <button class="btn small on" data-tool="pen">✏️ 펜</button>
-      <button class="btn small" data-tool="eraser">🧽 지우개</button>
+      <button class="btn small on" data-tool="pen" title="펜">✏️<span class="lbl"> 펜</span></button>
+      <button class="btn small" data-tool="eraser" title="지우개">🧽<span class="lbl"> 지우개</span></button>
       <span class="sep"></span>
-      <label>굵기 <input type="range" id="penSize" min="2" max="60" value="12"></label>
-      <label>색 <input type="color" id="penColor" value="#111111"></label>
+      <label title="펜 굵기"><span class="lbl">굵기</span> <input type="range" id="penSize" min="2" max="60" value="12"></label>
+      <label title="펜 색"><span class="lbl">색</span> <input type="color" id="penColor" value="#111111"></label>
       <span class="sep"></span>
-      <button class="btn small" id="undo">↶ 되돌리기</button>
-      <button class="btn small danger" id="clearDraw">그림 지우기</button>
-      <button class="btn small danger" id="clearText">글자 지우기</button>
+      <button class="btn small" id="undo" title="되돌리기">↶<span class="lbl"> 되돌리기</span></button>
+      <button class="btn small danger" id="clearDraw" title="그림 지우기"><span class="ico">🗑️</span><span class="lbl">그림 지우기</span></button>
+      <button class="btn small danger" id="clearText" title="글자 지우기"><span class="ico">⌫</span><span class="lbl">글자 지우기</span></button>
     </div>
     <div class="canvas-box">
       <canvas id="view" width="1280" height="655"></canvas>
@@ -142,7 +154,6 @@
     { group: '망가진 손글씨', name: '어비 지글', family: 'UhBee ZIGLE', url: UHBEE('ZIGLE') },
     { group: '망가진 손글씨', name: '어비 버찌', family: 'UhBee BEOJJI', url: UHBEE('BEOJJI') },
     { group: '깔끔한 손글씨', name: '하이멜로디', family: 'Hi Melody' },
-    { group: '깔끔한 손글씨', name: '푸어스토리', family: 'Poor Story' },
     { group: '깔끔한 손글씨', name: '오뮤 다예쁨', family: 'omyu pretty', url: NOON + 'noonfonts_2304-01@1.0/omyu_pretty.woff2' },
     { group: '깔끔한 손글씨', name: '도브메이요', family: 'Dovemayo gothic', url: NOON + 'noonfonts_2302@1.1/Dovemayo_gothic.woff2' },
     { group: '깔끔한 손글씨', name: '교보 손글씨', family: 'Kyobo Hand', url: NOON + 'noonfonts_20-04@1.0/KyoboHand.woff' },
@@ -395,10 +406,10 @@
   }
   const toCanvas = (e) => { const r = view.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
   function updateCursor(e) {
-    const c = $('cursor'), r = view.getBoundingClientRect();
+    const c = $('cursor'), r = view.getBoundingClientRect(), box = c.parentElement.getBoundingClientRect();
     const d = val('penSize') * r.width / W;
     c.style.width = c.style.height = Math.max(4, d) + 'px';
-    c.style.left = (e.clientX - r.left) + 'px'; c.style.top = (e.clientY - r.top) + 'px';
+    c.style.left = (e.clientX - box.left) + 'px'; c.style.top = (e.clientY - box.top) + 'px';
     c.style.display = 'block';
   }
   view.addEventListener('pointerdown', (e) => {
