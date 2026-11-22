@@ -91,7 +91,8 @@
   #list li.similar.dropt, #list li.similar.dragging { animation:none; }
   #list li.similar.dropt { outline-color:var(--accent); }
   #list li .num { cursor:text; }
-  #list li .nedit { width:100%; padding:2px 6px; font-size:14px; border-radius:6px; }
+  #list li .name { justify-self:start; max-width:100%; padding:0 3px; margin-left:-3px; }
+  #list li .nedit { field-sizing:content; width:auto; min-width:3em; max-width:100%; padding:2px 6px; font-size:14px; border-radius:6px; }
   #list li .cedit { width:84px; padding:2px 6px; font-size:14px; text-align:right; border-radius:6px; }
   #list li.off .name, #list li.off .num, #list li.off .pct { opacity:.4; text-decoration:line-through; }
   #list li.off .dot { opacity:.35; }
@@ -558,7 +559,7 @@ let dragItem = null;
 
 // ---------- 항목 끌어다 합치기 (포인터 이벤트: HTML 드래그앤드롭이 안 되는 환경에서도 동작) ----------
 const liItem = new WeakMap();
-let rowDrag = null, suppressClickUntil = 0, mergedFlash = null, nameClickT = 0;
+let rowDrag = null, suppressClickUntil = 0, mergedFlash = null;
 function startRowDrag(e, it, li) {
   if (e.button !== 0 || spinning || removing.has(it)) return;
   if (e.target.closest('button, input, .num')) return;          // × 버튼, 치즈 수정 칸은 제외
@@ -669,7 +670,7 @@ function editCheese(it, cell) {
   inp.onblur = () => end(true);
 }
 
-// 항목 이름 수정 (이름 더블클릭). 다른 항목과 같은 이름이 되면 그 항목에 합친다
+// 항목 이름 수정 (이름 클릭). 다른 항목과 같은 이름이 되면 그 항목에 합친다
 function editName(it, cell) {
   if (spinning || removing.has(it) || cell.querySelector('input')) return;
   const inp = document.createElement('input');
@@ -700,7 +701,6 @@ function editName(it, cell) {
     render();
   };
   inp.onclick = (e) => e.stopPropagation();
-  inp.ondblclick = (e) => e.stopPropagation();
   inp.onkeydown = (e) => {
     if (e.isComposing) return;
     if (e.key === 'Enter') end(true);
@@ -1213,7 +1213,6 @@ function render() {
     li.innerHTML = '<span class="dot"></span><span class="name"></span><span class="num"></span><span class="num"></span><button class="x danger">×</button>';
     li.children[0].style.background = itemColor(it);
     li.children[1].textContent = it.name;
-    li.children[1].title = it.name;
     li.children[2].textContent = it.cheese.toLocaleString();
     const un = document.createElement('small');
     un.className = 'unit';
@@ -1225,14 +1224,14 @@ function render() {
     if (it.off) li.classList.add('off');
     if (mergeHint && (mergeHint.a === it || mergeHint.b === it)) li.classList.add('similar');
     if (mergedFlash === it) { li.classList.add('merged'); mergedFlash = null; }
-    li.title = (it.off ? '클릭: 룰렛에 다시 포함' : '클릭: 룰렛에서 임시 제외') + ' · 이름 더블클릭: 이름 수정';
+    li.title = (it.off ? '클릭: 룰렛에 다시 포함' : '클릭: 룰렛에서 임시 제외') + ' · 끌어서 다른 항목에 놓으면 합치기';
+    li.children[1].title = `${it.name}\n클릭: 이름 수정`;
+    // 이름 클릭 = 이름 수정, 그 외 영역 클릭 = 제외 on/off (끌기는 6px 이상 움직였을 때만 따로 판단)
     li.onclick = (e) => {
       if (performance.now() <= suppressClickUntil) return;
-      // 이름 위 클릭은 더블클릭(이름 수정)일 수 있어서 잠깐 기다렸다가 제외 토글
-      if (e.target.closest('.name')) { clearTimeout(nameClickT); nameClickT = setTimeout(() => toggleOff(it), 230); }
+      if (e.target.closest('.name')) editName(it, li.children[1]);
       else toggleOff(it);
     };
-    li.children[1].ondblclick = (e) => { e.stopPropagation(); clearTimeout(nameClickT); editName(it, li.children[1]); };
     li.onpointerdown = (e) => startRowDrag(e, it, li);
     liItem.set(li, it);
     li.children[2].title = '클릭: 치즈 수정';
