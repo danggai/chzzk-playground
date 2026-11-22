@@ -126,6 +126,17 @@
   input.bump { animation:inputbump .5s ease-out; border-color:#b57bff; }
   .chk input { flex:none; width:16px; height:16px; min-width:0; padding:0; margin:2px 0 0; border-radius:4px; accent-color:#b57bff; cursor:pointer; }
   .chk small { display:block; color:#b57bff; font-weight:700; margin-top:2px; }
+  /* 접고 펼 수 있는 패널 */
+  .foldhd { display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; margin-bottom:10px; transition:margin .25s; }
+  .foldhd:hover { color:var(--text); }
+  .foldhd .fsum { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:500; color:#6b717a; opacity:0; transition:opacity .2s; }
+  .foldhd .chev { flex:none; width:8px; height:8px; margin-right:4px; border-right:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg) translateY(-2px); transition:transform .25s; }
+  .fold .fbody { display:grid; grid-template-rows:1fr; transition:grid-template-rows .28s ease; }
+  .fold .finner { min-height:0; overflow:hidden; }
+  .fold.closed .fbody { grid-template-rows:0fr; }
+  .fold.closed .foldhd { margin-bottom:0; }
+  .fold.closed .foldhd .fsum { opacity:1; }
+  .fold.closed .foldhd .chev { transform:rotate(-45deg); }
   #addAmt.dflt::placeholder { color:var(--text); opacity:.75; }
   .chk.lim { align-items:center; font-size:13px; color:var(--sub); }
   .chk.lim input { width:56px; height:auto; padding:3px 6px; margin:0; text-align:center; font-size:13px; border-radius:6px; accent-color:auto; }
@@ -401,8 +412,9 @@
   <div class="splitter" id="splitter" title="드래그해서 너비 조절 (더블클릭: 초기화)"></div>
 
   <div class="side">
-    <div class="panel">
-      <h2>치즈 설정</h2>
+    <div class="panel fold" id="cheesePanel">
+      <h2 class="foldhd" id="cheeseHd" role="button" tabindex="0" aria-expanded="true">치즈 설정 <span class="fsum" id="cheeseSum"></span><i class="chev"></i></h2>
+      <div class="fbody"><div class="finner">
       <div class="row">
         <span style="width:72px;align-self:center;color:var(--sub);flex:none">최소 치즈</span>
         <input id="minAmt" type="text" inputmode="numeric" autocomplete="off" placeholder="0" style="flex:1" title="이 금액 미만 후원은 무시">
@@ -429,6 +441,7 @@
         <label class="sw"><input id="subOn" type="checkbox"><i></i></label>
       </div>
       <div class="hint">ex) <b>이터널리턴 차감</b> 처럼 후원 메시지 끝에 "차감"을 붙이면 해당 항목에서 후원 치즈만큼 차감</div>
+      </div></div>
     </div>
 
     <div class="panel">
@@ -2079,6 +2092,26 @@ $('minAmt').onchange = () => {
   try { localStorage.setItem('cheese-roulette-min', String(minCheese)); } catch {}
   syncAddAmtHint();
 };
+
+// ---------- 치즈 설정 접기/펼치기 (접으면 제목 옆에 요약 표시) ----------
+function updateCheeseSum() {
+  const f = (n) => n.toLocaleString();
+  const parts = [`최소 ${f(minCheese)}`];
+  if (regMin > 0) parts.push(`등록 ${f(regMin)}`);
+  if (rerollCost > 0) parts.push(`리롤 ${f(rerollCost)}${rerollInc ? '↑' : ''}${rerollMax ? ` ×${rerollMax}` : ''}`);
+  if (subOn) parts.push('차감');
+  $('cheeseSum').textContent = parts.join(' · ');
+}
+function setCheeseFold(closed) {
+  $('cheesePanel').classList.toggle('closed', closed);
+  $('cheeseHd').setAttribute('aria-expanded', String(!closed));
+  try { localStorage.setItem('cheese-roulette-fold-cheese', closed ? '1' : '0'); } catch {}
+}
+$('cheeseHd').onclick = () => setCheeseFold(!$('cheesePanel').classList.contains('closed'));
+$('cheeseHd').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('cheeseHd').click(); } };
+$('cheesePanel').addEventListener('change', () => setTimeout(updateCheeseSum, 0));
+updateCheeseSum();
+try { if (localStorage.getItem('cheese-roulette-fold-cheese') === '1') setCheeseFold(true); } catch {}
 
 let rerollBusy = false;
 
