@@ -76,6 +76,10 @@
   #list li .num { color:var(--sub); font-variant-numeric:tabular-nums; }
   #list li { cursor:pointer; }
   #list li.dragging { opacity:.35; }
+  #list li.merged { animation:mergeflash .45s ease-out; }
+  #list li.merged .num { animation:mergebump .45s ease-out; }
+  @keyframes mergeflash { 0% { background:rgba(0,255,163,.28); } 100% { background:transparent; } }
+  @keyframes mergebump { 0% { transform:scale(1); } 35% { transform:scale(1.18); color:var(--accent); } 100% { transform:scale(1); } }
   #list li.ghost { background:#262a31; border-radius:8px; box-shadow:0 10px 24px rgba(0,0,0,.55); opacity:.95; transition:none; }
   body.rowdrag, body.rowdrag * { cursor:grabbing !important; user-select:none; }
   #list li.dropt { outline:2px dashed var(--accent); outline-offset:-2px; background:rgba(0,255,163,.1); }
@@ -553,7 +557,7 @@ let dragItem = null;
 
 // ---------- 항목 끌어다 합치기 (포인터 이벤트: HTML 드래그앤드롭이 안 되는 환경에서도 동작) ----------
 const liItem = new WeakMap();
-let rowDrag = null, suppressClickUntil = 0;
+let rowDrag = null, suppressClickUntil = 0, mergedFlash = null;
 function startRowDrag(e, it, li) {
   if (e.button !== 0 || spinning || removing.has(it)) return;
   if (e.target.closest('button, input, .num')) return;          // × 버튼, 치즈 수정 칸은 제외
@@ -597,6 +601,16 @@ function endRowDrag(e, cancel) {
   document.body.classList.remove('rowdrag');
   dragItem = null;
   const dst = !cancel && d.target ? liItem.get(d.target) : null;
+  if (dst && dst !== d.it && d.ghost && d.ghost.animate) {
+    // 끌던 줄이 대상 줄로 빨려 들어가는 애니메이션 후 합치기
+    const tr = d.target.getBoundingClientRect();
+    const a = d.ghost.animate(
+      [{ left: d.ghost.style.left, top: d.ghost.style.top, opacity: 0.95, transform: 'scale(1)' },
+       { left: tr.left + 'px', top: tr.top + 'px', opacity: 0, transform: 'scale(.85)' }],
+      { duration: 220, easing: 'cubic-bezier(.4,0,.6,1)', fill: 'forwards' });
+    a.onfinish = () => { d.ghost.remove(); mergeItems(d.it, dst); };
+    return;
+  }
   if (d.ghost) d.ghost.remove();
   d.li.classList.remove('dragging');
   if (dst && dst !== d.it) mergeItems(d.it, dst);
@@ -616,6 +630,7 @@ function mergeItems(src, dst) {
   if (src.anonN) dst.anonN = (dst.anonN || 0) + src.anonN;
   log(`합치기: ${src.name} (${src.cheese.toLocaleString()}) -> ${dst.name}`);
   if (mergeHint && (mergeHint.a === src || mergeHint.b === src)) { mergeHint = null; mergeToast && mergeToast.classList.remove('show'); }
+  mergedFlash = dst;
   save();
   removeItem(src, null);
   render();
@@ -1168,6 +1183,7 @@ function render() {
     li.children[4].onclick = (e) => { e.stopPropagation(); removeItem(it, li); };
     if (it.off) li.classList.add('off');
     if (mergeHint && (mergeHint.a === it || mergeHint.b === it)) li.classList.add('similar');
+    if (mergedFlash === it) { li.classList.add('merged'); mergedFlash = null; }
     li.title = it.off ? '클릭: 룰렛에 다시 포함' : '클릭: 룰렛에서 임시 제외';
     li.onclick = () => { if (performance.now() > suppressClickUntil) toggleOff(it); };
     li.onpointerdown = (e) => startRowDrag(e, it, li);
